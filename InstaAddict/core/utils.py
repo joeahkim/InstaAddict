@@ -529,7 +529,7 @@ def save_crash(device):
         "If you want to report this crash, please upload the dump file via a ticket in the #lobby channel on discord ",
         extra={"color": Fore.GREEN},
     )
-    logger.info("https://discord.gg/66zWWCDM7x\n", extra={"color": Fore.GREEN})
+    logger.info("https://discord.gg/ySMaySMCD\n", extra={"color": Fore.GREEN})
     check_if_updated(crash=True)
     if args.screen_record:
         try:
