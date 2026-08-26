@@ -624,9 +624,14 @@ def _comment(
         media = device.find(
             resourceIdMatches=ResourceID.MEDIA_CONTAINER,
         )
-        if int(tab_bar.get_bounds()["top"]) - int(media.get_bounds()["bottom"]) < 150:
-            universal_actions._swipe_points(
-                direction=Direction.DOWN, delta_y=randint(150, 250)
+        if tab_bar.exists() and media.exists():
+            if int(tab_bar.get_bounds()["top"]) - int(media.get_bounds()["bottom"]) < 150:
+                universal_actions._swipe_points(
+                    direction=Direction.DOWN, delta_y=randint(150, 250)
+                )
+        else:
+            logger.debug(
+                "Tab bar or media container not found — skipping extra swipe check."
             )
         # look at hashtag of comment
         for _ in range(2):
@@ -640,6 +645,21 @@ def _comment(
                     resourceId=ResourceID.LAYOUT_COMMENT_THREAD_EDITTEXT,
                     enabled="true",
                 )
+                if not comment_box.exists():
+                    comment_box = device.find(
+                        resourceId=ResourceID.LAYOUT_COMMENT_THREAD_EDITTEXT_MULTILINE,
+                        enabled="true",
+                    )
+                if not comment_box.exists():
+                    any_edittext = device.find(classNameMatches=".*EditText.*|.*AutoCompleteTextView.*")
+                    if any_edittext.exists():
+                        logger.debug(
+                            f"[DEBUG comment box] found an EditText-like widget but the selector missed it. Bounds: {any_edittext.get_bounds()}"
+                        )
+                    else:
+                        logger.debug(
+                            "[DEBUG comment box] no EditText-like widget found on screen at all."
+                        )
                 if comment_box.exists():
                     comment = load_random_comment(my_username, media_type)
                     if comment is None:
@@ -656,7 +676,20 @@ def _comment(
                     post_button = device.find(
                         resourceId=ResourceID.LAYOUT_COMMENT_THREAD_POST_BUTTON_CLICK_AREA
                     )
-                    post_button.click()
+                    if not post_button.exists():
+                        post_button = device.find(
+                            resourceId=ResourceID.LAYOUT_COMMENT_THREAD_POST_BUTTON_ICON
+                        )
+                    if not post_button.exists():
+                        # Fallback: try to find button by text "Post" or "Send"
+                        post_button = device.find(textMatches="(?i)^(Post|Send)$")
+                    if post_button.exists():
+                        post_button.click()
+                    else:
+                        logger.warning("Post button not found, skipping comment submission")
+                        universal_actions.close_keyboard(device)
+                        device.back()
+                        return False
                 else:
                     logger.info("Comments on this post have been limited.")
                     universal_actions.close_keyboard(device)
@@ -695,7 +728,6 @@ def _comment(
                     direction=Direction.DOWN, delta_y=randint(150, 250)
                 )
     return False
-
 
 def _send_PM(
     device,
