@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug encountered while operating GramAdict
+about: Report a bug encountered while operating InstaAddict
 labels: kind/bug
 
 ---
