@@ -2393,34 +2393,43 @@ class FollowingView:
             logger.error(f"Cannot find {username} in following list.")
             return False
 
-        # new layout: unfollow is behind the three-dots menu on each row
-        options_button = user_row.child(
-            descriptionMatches=case_insensitive_re("options|more")
-        )
-        if not options_button.exists(Timeout.SHORT):
-            # fallback: it's the last item on the row, after the Message/Following button
-            options_button = user_row.child(index=3)
-        if not options_button.exists():
-            logger.error(f"Cannot find the options button for {username}.")
-            save_crash(self.device)
-            return False
-        logger.debug("Opening the three-dots menu.")
-        options_button.click()
-
         UNFOLLOW_REGEX = "^Unfollow$"
-        unfollow_row = self.device.find(
-            classNameMatches=ClassName.BUTTON_OR_TEXTVIEW_REGEX,
-            textMatches=UNFOLLOW_REGEX,
-        )
-        if not unfollow_row.exists(Timeout.SHORT):
-            logger.info(
-                f"@{username} has no Unfollow option. Can't unfollow from the list."
+
+        # Fast path: some rows show a direct "Following" button we can tap
+        # straight away, instead of going through the three-dots menu.
+        following_button = user_row.child(index=2, textMatches="^Following$")
+        if following_button.exists(Timeout.SHORT):
+            logger.debug("Direct 'Following' button found, using it.")
+            following_button.click()
+            random_sleep(0, 1, modulable=False)
+        else:
+            # new layout: unfollow is behind the three-dots menu on each row
+            options_button = user_row.child(
+                descriptionMatches=case_insensitive_re("options|more")
             )
-            self.device.back()
-            return None
-        logger.debug("Pressing on Unfollow.")
-        unfollow_row.click()
-        random_sleep(0, 1, modulable=False)
+            if not options_button.exists(Timeout.SHORT):
+                # fallback: it's the last item on the row, after the Message/Following button
+                options_button = user_row.child(index=3)
+            if not options_button.exists():
+                logger.error(f"Cannot find the options button for {username}.")
+                save_crash(self.device)
+                return False
+            logger.debug("Opening the three-dots menu.")
+            options_button.click()
+
+            unfollow_row = self.device.find(
+                classNameMatches=ClassName.BUTTON_OR_TEXTVIEW_REGEX,
+                textMatches=UNFOLLOW_REGEX,
+            )
+            if not unfollow_row.exists(Timeout.SHORT):
+                logger.info(
+                    f"@{username} has no Unfollow option. Can't unfollow from the list."
+                )
+                self.device.back()
+                return None
+            logger.debug("Pressing on Unfollow.")
+            unfollow_row.click()
+            random_sleep(0, 1, modulable=False)
 
         # private accounts ask for an extra confirmation
         confirm_unfollow_button = self.device.find(
@@ -2445,7 +2454,6 @@ class FollowingView:
         logger.error(f"Cannot confirm unfollow for {username}.")
         save_crash(self.device)
         return False
-
 
 class FollowersView:
     def __init__(self, device: DeviceFacade):
