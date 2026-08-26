@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug encountered while operating GramAdict
+about: Report a bug encountered while operating InstaAddict
 labels: kind/bug
 
 ---
@@ -29,4 +29,4 @@ Relevant Logs:
 
 
 <br /><br /><br />
-### *Note: if you have a crash log, please do not attach the archive here as this is not a secure place to upload the sensitive data inside. Please open a ticket in [Discord](https://discord.com/invite/66zWWCDM7x) in #lobby and provide the ticket ID here.
+### *Note: if you have a crash log, please do not attach the archive here as this is not a secure place to upload the sensitive data inside. Please open a ticket in [Discord](https://discord.com/invite/PvxsP8HFa) in #lobby and provide the ticket ID here.
