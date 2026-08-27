@@ -858,6 +858,11 @@ def iterate_over_followers(
 
         if is_myself and scrolled_to_top():
             logger.info("Scrolled to top, finish.", extra={"color": f"{Fore.GREEN}"})
+            # Navigate back to SEARCH after finishing followers iteration
+            # First back goes to blogger's profile, second back goes to SEARCH
+            logger.info("Navigating back to SEARCH")
+            device.back()
+            device.back()
             return
         elif len(screen_iterated_followers) > 0:
             load_more_button = device.find(
@@ -883,6 +888,11 @@ def iterate_over_followers(
                 continue
 
             if scroll_end_detector.is_the_end():
+                # Navigate back to SEARCH after finishing followers iteration
+                # First back goes to blogger's profile, second back goes to SEARCH
+                logger.info("End of followers list, navigating back to SEARCH")
+                device.back()
+                device.back()
                 return
 
             need_swipe = screen_skipped_followers_count == len(
