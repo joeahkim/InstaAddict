@@ -863,6 +863,14 @@ def iterate_over_followers(
             logger.info("Navigating back to SEARCH")
             device.back()
             device.back()
+            # Check if we landed on active search-input screen (no tab bar)
+            # If so, press back again to dismiss it
+            search_input = device.find(
+                resourceId=self.ResourceID.ACTION_BAR_SEARCH_EDIT_TEXT
+            )
+            if search_input.exists():
+                logger.debug("On active search-input screen, pressing back to dismiss")
+                device.back()
             return
         elif len(screen_iterated_followers) > 0:
             load_more_button = device.find(
@@ -893,6 +901,14 @@ def iterate_over_followers(
                 logger.info("End of followers list, navigating back to SEARCH")
                 device.back()
                 device.back()
+                # Check if we landed on active search-input screen (no tab bar)
+                # If so, press back again to dismiss it
+                search_input = device.find(
+                    resourceId=self.ResourceID.ACTION_BAR_SEARCH_EDIT_TEXT
+                )
+                if search_input.exists():
+                    logger.debug("On active search-input screen, pressing back to dismiss")
+                    device.back()
                 return
 
             need_swipe = screen_skipped_followers_count == len(
