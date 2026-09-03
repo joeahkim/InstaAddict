@@ -1019,6 +1019,14 @@ def _watch_stories(
             stories_counter = 0
             logger.debug("Open the story container.")
             stories_ring.click(sleep=SleepTime.DEFAULT)
+            # Check if expanded profile picture preview opened instead of story
+            expanded_profile_pic = device.find(
+                resourceId=ResourceID.TOUCH_INTERCEPTOR_EXPANDED_PROFILE_PIC
+            )
+            if expanded_profile_pic.exists():
+                logger.debug("Profile picture preview opened instead of story. Dismissing.")
+                device.back()
+                return 0
             story_view = CurrentStoryView(device)
             story_frame = story_view.getStoryFrame()
             story_frame.wait(Timeout.MEDIUM)
