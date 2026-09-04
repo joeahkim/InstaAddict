@@ -1586,20 +1586,7 @@ class OpenedPostView:
         if clips_container.exists():
             logger.info("It's a Reel (detected after opening).")
             return MediaType.REEL
-        video_container = self.device.find(
-            resourceIdMatches=case_insensitive_re(ResourceID.VIDEO_CONTAINER)
-        )
-        if video_container.exists():
-            play_button = self.device.find(
-                resourceIdMatches=case_insensitive_re(ResourceID.VIEW_PLAY_BUTTON)
-            )
-            timer = self.device.find(resourceId=ResourceID.TIMER)
-            if play_button.exists() or timer.exists():
-                logger.info("It's a video (detected after opening).")
-                return MediaType.VIDEO
-            logger.debug(
-                "video_container is present but there's no play button or timer - not a video."
-            )
+
         carousel_indicator = self.device.find(
             resourceIdMatches=case_insensitive_re(
                 f"{ResourceID.CAROUSEL_MEDIA_GROUP}|{ResourceID.CAROUSEL_INDEX_INDICATOR_TEXT_VIEW}"
@@ -1608,7 +1595,24 @@ class OpenedPostView:
         if carousel_indicator.exists():
             logger.info("It's a carousel (detected after opening).")
             return MediaType.CAROUSEL
-        logger.info("It's a photo (detected after opening).")
+
+        photo_indicator = self.device.find(
+            resourceIdMatches=case_insensitive_re(ResourceID.ROW_FEED_PHOTO_IMAGEVIEW)
+        )
+        if photo_indicator.exists():
+            logger.info("It's a photo (detected after opening).")
+            return MediaType.PHOTO
+
+        video_container = self.device.find(
+            resourceIdMatches=case_insensitive_re(ResourceID.VIDEO_CONTAINER)
+        )
+        if video_container.exists():
+            logger.info("It's a video (detected after opening).")
+            return MediaType.VIDEO
+
+        logger.warning(
+            "Could not identify media type from any known marker — defaulting to photo."
+        )
         return MediaType.PHOTO
 
     def _get_post_like_button(self) -> Optional[DeviceFacade.View]:

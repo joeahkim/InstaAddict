@@ -22,3 +22,4 @@ Pipfile.lock
 /crashes/
 /logs/
 __pycache__/
+/run_multiple.py
