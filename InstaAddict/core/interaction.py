@@ -673,16 +673,19 @@ def _comment(
                         comment, Mode.PASTE if args.dont_type else Mode.TYPE
                     )
 
+                    # Wait for post button to appear (it only shows after typing)
+                    random_sleep(0.5, 1, modulable=False)
+
                     post_button = device.find(
-                        resourceId=ResourceID.LAYOUT_COMMENT_THREAD_POST_BUTTON_CLICK_AREA
+                        resourceId=ResourceID.LAYOUT_COMMENT_THREAD_POST_BUTTON_ICON
                     )
                     if not post_button.exists():
                         post_button = device.find(
-                            resourceId=ResourceID.LAYOUT_COMMENT_THREAD_POST_BUTTON_ICON
+                            resourceId=ResourceID.LAYOUT_COMMENT_THREAD_POST_BUTTON_CLICK_AREA
                         )
                     if not post_button.exists():
-                        # Fallback: try to find button by text "Post" or "Send"
-                        post_button = device.find(textMatches="(?i)^(Post|Send)$")
+                        # Fallback: try to find button by content-desc "Post" or "Send"
+                        post_button = device.find(descriptionMatches="(?i)^(Post|Send)$")
                     if post_button.exists():
                         post_button.click()
                     else:
@@ -698,15 +701,12 @@ def _comment(
 
                 universal_actions.detect_block(device)
                 universal_actions.close_keyboard(device)
+                # Verify comment was posted by checking for "{username} said {comment}" pattern in content-desc
+                # This is the reliable signal based on UI hierarchy analysis
                 posted_text = device.find(
-                    text=f"{my_username} {comment}",
+                    description=f"{my_username} said {comment}"
                 )
-                when_posted = posted_text.sibling(
-                    resourceId=ResourceID.ROW_COMMENT_SUB_ITEMS_BAR
-                ).child(resourceId=ResourceID.ROW_COMMENT_TEXTVIEW_TIME_AGO)
-                if posted_text.exists(Timeout.MEDIUM) and when_posted.exists(
-                    Timeout.MEDIUM
-                ):
+                if posted_text.exists(Timeout.MEDIUM):
                     logger.info("Comment succeed.", extra={"color": f"{Fore.GREEN}"})
                     session_state.totalComments += 1
                     comment_confirmed = True
