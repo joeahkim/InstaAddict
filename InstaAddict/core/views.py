@@ -2385,79 +2385,107 @@ class FollowingView:
         """
         exists = False
         username_row = ""
+
         if user_row is None:
             user_row = self.device.find(
                 resourceId=ResourceID.FOLLOW_LIST_CONTAINER,
                 className=ClassName.LINEAR_LAYOUT,
             )
+
         if user_row.exists(Timeout.MEDIUM):
             exists = True
             username_row = user_row.child(index=1).child().child().get_text()
+
         if not exists or username_row != username:
             logger.error(f"Cannot find {username} in following list.")
             return False
 
-        UNFOLLOW_REGEX = "^Unfollow$"
-
-        # Fast path: some rows show a direct "Following" button we can tap
-        # straight away, instead of going through the three-dots menu.
-        following_button = user_row.child(index=2, textMatches="^Following$")
-        if following_button.exists(Timeout.SHORT):
-            logger.debug("Direct 'Following' button found, using it.")
-            following_button.click()
-            random_sleep(0, 1, modulable=False)
-        else:
-            # new layout: unfollow is behind the three-dots menu on each row
-            options_button = user_row.child(
-                descriptionMatches=case_insensitive_re("options|more")
-            )
-            if not options_button.exists(Timeout.SHORT):
-                # fallback: it's the last item on the row, after the Message/Following button
-                options_button = user_row.child(index=3)
-            if not options_button.exists():
-                logger.error(f"Cannot find the options button for {username}.")
-                save_crash(self.device)
-                return False
-            logger.debug("Opening the three-dots menu.")
-            options_button.click()
-
-            unfollow_row = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_TEXTVIEW_REGEX,
-                textMatches=UNFOLLOW_REGEX,
-            )
-            if not unfollow_row.exists(Timeout.SHORT):
-                logger.info(
-                    f"@{username} has no Unfollow option. Can't unfollow from the list."
-                )
-                self.device.back()
-                return None
-            logger.debug("Pressing on Unfollow.")
-            unfollow_row.click()
-            random_sleep(0, 1, modulable=False)
-
-        # private accounts ask for an extra confirmation
-        confirm_unfollow_button = self.device.find(
-            classNameMatches=ClassName.BUTTON_OR_TEXTVIEW_REGEX,
-            textMatches=UNFOLLOW_REGEX,
+        # Click the Following button in the user's row.
+        FOLLOWING_REGEX = "^Following$"
+        following_button = user_row.child(
+            textMatches=case_insensitive_re(FOLLOWING_REGEX)
         )
-        if confirm_unfollow_button.exists(Timeout.SHORT):
-            logger.debug("Confirm unfollow private account.")
-            confirm_unfollow_button.click()
-            random_sleep(0, 1, modulable=False)
+
+        if not following_button.exists(Timeout.SHORT):
+            following_button = user_row.child(
+                index=2,
+                textMatches=case_insensitive_re(FOLLOWING_REGEX),
+            )
+
+        if not following_button.exists():
+            logger.error(f"Cannot find Following button for {username}.")
+            save_crash(self.device)
+            return False
+
+        logger.debug(f"Pressing Following button for {username}.")
+        following_button.click()
+        random_sleep(1, 2, modulable=False)
+
+        # Some Instagram versions unfollow immediately after pressing Following.
+        FOLLOW_REGEX = "^Follow$|^Follow back$"
+
+        for n in range(3):
+            follow_button = user_row.child(
+                textMatches=case_insensitive_re(FOLLOW_REGEX)
+            )
+            if follow_button.exists(Timeout.SHORT):
+                logger.info(
+                    f"{username} unfollowed.",
+                    extra={"color": f"{Style.BRIGHT}{Fore.GREEN}"},
+                )
+                return True
+            random_sleep(1, 2, modulable=False)
+
+        # Other Instagram versions show an additional Unfollow option.
+        UNFOLLOW_REGEX = "^Unfollow$"
+        unfollow_button = self.device.find(
+            classNameMatches=ClassName.BUTTON_OR_TEXTVIEW_REGEX,
+            textMatches=case_insensitive_re(UNFOLLOW_REGEX),
+        )
+
+        if not unfollow_button.exists(Timeout.SHORT):
+            unfollow_button = self.device.find(
+                textMatches=case_insensitive_re(UNFOLLOW_REGEX)
+            )
+
+        if unfollow_button.exists(Timeout.SHORT):
+            logger.debug(f"Pressing Unfollow for {username}.")
+            unfollow_button.click()
+            random_sleep(1, 2, modulable=False)
+
+            confirm_unfollow_button = self.device.find(
+                classNameMatches=ClassName.BUTTON_OR_TEXTVIEW_REGEX,
+                textMatches=case_insensitive_re(UNFOLLOW_REGEX),
+            )
+            if confirm_unfollow_button.exists(Timeout.SHORT):
+                logger.debug(f"Confirming unfollow for {username}.")
+                confirm_unfollow_button.click()
+                random_sleep(1, 2, modulable=False)
 
         UniversalActions.detect_block(self.device)
-        # "Follow back" shows up for accounts that follow you: the unfollow worked
-        FOLLOW_REGEX = "^Follow$|^Follow back$"
-        follow_button = user_row.child(index=2, textMatches=FOLLOW_REGEX)
-        if follow_button.exists(Timeout.SHORT):
-            logger.info(
-                f"{username} unfollowed.",
-                extra={"color": f"{Style.BRIGHT}{Fore.GREEN}"},
+
+        # Final verification.
+        for n in range(5):
+            follow_button = user_row.child(
+                textMatches=case_insensitive_re(FOLLOW_REGEX)
             )
-            return True
+            if follow_button.exists(Timeout.SHORT):
+                logger.info(
+                    f"{username} unfollowed.",
+                    extra={"color": f"{Style.BRIGHT}{Fore.GREEN}"},
+                )
+                return True
+
+            logger.debug(
+                f"Waiting for unfollow confirmation for {username}, "
+                f"retry {n + 1}/5."
+            )
+            random_sleep(1, 2, modulable=False)
+
         logger.error(f"Cannot confirm unfollow for {username}.")
         save_crash(self.device)
         return False
+
 
 class FollowersView:
     def __init__(self, device: DeviceFacade):
