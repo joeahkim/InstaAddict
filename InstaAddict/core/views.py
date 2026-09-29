@@ -1122,6 +1122,19 @@ class PostsViewList:
                 )
                 if clips_caption.exists(Timeout.SHORT):
                     caption_text = clips_caption.get_text()
+            if not caption_text:
+                # Check if we're in Reels layout — if so, dump and bail
+                # (swiping down in Reels goes to next video, not more content)
+                clips_author = self.device.find(
+                    resourceIdMatches=ResourceID.CLIPS_AUTHOR_USERNAME
+                )
+                if clips_author.exists():
+                    logger.debug(self.device.dump_hierarchy("reels_debug.xml"))
+                    logger.info(
+                        "Reels layout detected, no description found. "
+                        "See reels_debug.xml for UI hierarchy."
+                    )
+                    return False, "", username, is_ad, is_hashtag, has_tags
             if caption_text:
                 new_description = caption_text.upper()
                 if new_description != last_description:
