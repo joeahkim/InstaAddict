@@ -535,6 +535,19 @@ class PostsViewList:
             logger.info(
                 "Scroll down to see next post.", extra={"color": f"{Fore.GREEN}"}
             )
+            # Reels: no gap_view, just swipe the full viewport to next reel
+            clips_viewer = self.device.find(
+                resourceIdMatches=ResourceID.CLIPS_AUTHOR_USERNAME
+            )
+            if clips_viewer.exists():
+                logger.debug("Reels layout: swiping to next reel.")
+                self.device.swipe_points(
+                    displayWidth / 2,
+                    displayHeight * 0.8,
+                    displayWidth / 2,
+                    displayHeight * 0.2,
+                )
+                return
             gap_view_obj = self.device.find(index=-1, resourceIdMatches=containers_gap)
             obj1 = None
             for _ in range(3):
@@ -1080,6 +1093,15 @@ class PostsViewList:
                 ):
                     logger.debug("Description found in current post hierarchy.")
                     return caption["text"]
+        # Reels fallback: caption in content-desc of clips_caption_component descendant
+        clips_caption_id = ResourceID.CLIPS_CAPTION_COMPONENT
+        for node in root.iter("node"):
+            if node.attrib.get("resource-id") == clips_caption_id:
+                for desc_node in node.iter("node"):
+                    desc = desc_node.attrib.get("content-desc", "")
+                    if len(desc) > 5:
+                        logger.debug("Description found in Reels caption component.")
+                        return PostsViewList._normalize_ig_text(desc)
         return None
 
     def _check_if_last_post(
@@ -1123,17 +1145,13 @@ class PostsViewList:
                 if clips_caption.exists(Timeout.SHORT):
                     caption_text = clips_caption.get_text()
             if not caption_text:
-                # Check if we're in Reels layout — if so, dump and bail
-                # (swiping down in Reels goes to next video, not more content)
+                # Reels: no feed-style description, don't swipe
+                # (swiping in Reels goes to next video, not more content)
                 clips_author = self.device.find(
                     resourceIdMatches=ResourceID.CLIPS_AUTHOR_USERNAME
                 )
                 if clips_author.exists():
-                    logger.debug(self.device.dump_hierarchy("reels_debug.xml"))
-                    logger.info(
-                        "Reels layout detected, no description found. "
-                        "See reels_debug.xml for UI hierarchy."
-                    )
+                    logger.info("Reels layout, no caption found.")
                     return False, "", username, is_ad, is_hashtag, has_tags
             if caption_text:
                 new_description = caption_text.upper()
@@ -1318,6 +1336,12 @@ class PostsViewList:
     def _get_media_container(self):
         media = self.device.find(resourceIdMatches=ResourceID.CAROUSEL_AND_MEDIA_GROUP)
         if not media.exists():
+            # Reels fallback
+            clips_media = self.device.find(
+                resourceIdMatches=ResourceID.CLIPS_MEDIA_COMPONENT
+            )
+            if clips_media.exists():
+                return clips_media, clips_media.get_desc()
             return media, None
         # The feed keeps thin slivers of already scrolled posts at the top and the
         # bottom of the list. They match the same ids but describe nothing, and
@@ -1338,6 +1362,11 @@ class PostsViewList:
         the media ends - so the heart pressed belongs to the post interacted with."""
         buttons = self.device.find(resourceIdMatches=ResourceID.ROW_FEED_BUTTON_LIKE)
         if not buttons.exists():
+            # Reels fallback: sidebar like_button
+            reels_like = self.device.find(resourceIdMatches=ResourceID.LIKE_BUTTON)
+            if reels_like.exists():
+                logger.debug("Using Reels sidebar like_button.")
+                return reels_like
             return None
         try:
             media_bottom = media.get_bounds()["bottom"] if media is not None else 0
@@ -1485,6 +1514,9 @@ class PostsViewList:
         bnt_like_obj = self.device.find(
             resourceIdMatches=ResourceID.ROW_FEED_BUTTON_LIKE
         )
+        if not bnt_like_obj.exists():
+            # Reels fallback: sidebar like_button
+            bnt_like_obj = self.device.find(resourceIdMatches=ResourceID.LIKE_BUTTON)
         if bnt_like_obj.exists():
             STR = "Liked"
             if self.device.find(descriptionMatches=case_insensitive_re(STR)).exists():
@@ -1494,7 +1526,6 @@ class PostsViewList:
                 logger.debug("Like is not present.")
                 return False
         if attempts <= 0:
-            # e.g. the clips viewer, which has no row_feed_button_like at all
             logger.debug("No like button on this screen, give up scrolling for it.")
             return False
         UniversalActions(self.device)._swipe_points(
@@ -1890,6 +1921,10 @@ class OpenedPostView:
                     direction=Direction.DOWN, delta_y=100
                 )
                 attempt += 1
+        # Reels fallback: sidebar like_button
+        reels_like = self.device.find(resourceIdMatches=ResourceID.LIKE_BUTTON)
+        if reels_like.exists():
+            return reels_like
         return None
 
     def _is_post_liked(self) -> Tuple[Optional[bool], Optional[DeviceFacade.View]]:
@@ -1918,6 +1953,11 @@ class OpenedPostView:
             like_button = self.device.find(
                 resourceIdMatches=case_insensitive_re(ResourceID.ROW_FEED_BUTTON_LIKE)
             )
+            if not like_button.exists(Timeout.SHORT):
+                # Reels fallback: sidebar like_button
+                like_button = self.device.find(
+                    resourceIdMatches=case_insensitive_re(ResourceID.LIKE_BUTTON)
+                )
             if like_button.exists(Timeout.SHORT):
                 logger.info("Liking post via the little heart ❤️.")
                 like_button.click()
