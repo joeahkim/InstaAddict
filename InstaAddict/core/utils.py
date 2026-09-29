@@ -237,6 +237,26 @@ def check_screen_timeout():
         logger.debug(resp.stdout)
 
 
+def dismiss_google_play_update_popup(device) -> bool:
+    current_app = device.deviceV2.app_current()
+    if current_app.get("package") != "com.android.vending":
+        return False
+
+    dismiss_button = device.deviceV2(description="Dismiss update dialog")
+    update_title = device.deviceV2(descriptionMatches="(?is).*Update available.*")
+    if dismiss_button.exists(timeout=1):
+        logger.info("Dismiss Google Play update dialog.")
+        dismiss_button.click()
+        sleep(1)
+        return True
+    if update_title.exists(timeout=1):
+        logger.info("Dismiss Google Play update dialog with back button.")
+        device.deviceV2.press("back")
+        sleep(1)
+        return True
+    return False
+
+
 def open_instagram(device):
     nl = "\n"
     FastInputIME = "com.github.uiautomator/.FastInputIME"
@@ -265,9 +285,11 @@ def open_instagram(device):
             return False
         n += 1
         logger.info(f"Waiting for Instagram to open... 😴 ({n}/{max_tries})")
-        if check_if_crash_popup_is_there(device):
+        if dismiss_google_play_update_popup(device):
+            call_ig()
+        elif check_if_crash_popup_is_there(device):
             logger.info("Ig crashed, try to open it again...")
-        call_ig()
+            call_ig()
         choose_cloned_app(device)
         random_sleep(3, 3, modulable=False)
 

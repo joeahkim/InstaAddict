@@ -407,19 +407,50 @@ class SearchView:
         target = emoji.emojize(target, use_aliases=True)
         logger.info(f"Navigate to {target}")
         search_edit_text = self._getSearchEditText()
-        if search_edit_text is not None:
-            logger.debug("Pressing on searchbar.")
-            search_edit_text.click(sleep=SleepTime.SHORT)
-        else:
+        if search_edit_text is None:
             logger.debug("There is no searchbar!")
             return False
+
+        logger.debug("Pressing on searchbar.")
+        try:
+            search_edit_text.click(sleep=SleepTime.SHORT)
+        except DeviceFacade.JsonRpcError:
+            logger.warning(
+                "Search bar disappeared. Refreshing Search and trying again."
+            )
+            search_edit_text = self._getSearchEditText()
+            if search_edit_text is None:
+                return False
+            try:
+                search_edit_text.click(sleep=SleepTime.SHORT)
+            except DeviceFacade.JsonRpcError:
+                logger.error("Search bar disappeared again; skipping this target.")
+                return False
+
         if self._check_current_view(target, job):
             logger.info(f"{target} is in recent history.")
             return True
-        search_edit_text.set_text(
-            target,
-            Mode.PASTE if args.dont_type else Mode.TYPE,
-        )
+
+        try:
+            search_edit_text.set_text(
+                target,
+                Mode.PASTE if args.dont_type else Mode.TYPE,
+            )
+        except DeviceFacade.JsonRpcError:
+            logger.warning("Search bar changed before text entry. Finding it again.")
+            search_edit_text = self._getSearchEditText()
+            if search_edit_text is None:
+                return False
+            try:
+                search_edit_text.set_text(
+                    target,
+                    Mode.PASTE if args.dont_type else Mode.TYPE,
+                )
+            except DeviceFacade.JsonRpcError:
+                logger.error(
+                    "Search bar disappeared during text entry; skipping this target."
+                )
+                return False
         if self._check_current_view(target, job):
             logger.info(f"{target} is in top view.")
             return True
@@ -1227,10 +1258,9 @@ class PostsViewList:
                 )._check_if_ad_or_hashtag(post_owner_obj)
             if username is None:
                 raw_text = post_owner_obj.get_text()
-                logger.debug(f"[DEBUG owner name] raw_text='{raw_text}'")
-                username = (
-                    post_owner_obj.get_text().replace("•", "").strip().split(" ", 1)[0]
-                )
+                if not raw_text:
+                    raw_text = post_owner_obj.get_desc() or ""
+                username = raw_text.replace("•", "").strip().split(" ", 1)[0]
             return username, is_ad, is_hashtag
 
         elif mode == Owner.GET_POSITION:
@@ -1454,6 +1484,67 @@ class PostsViewList:
 
         owner_name = post_owner_obj.get_text() or post_owner_obj.get_desc() or ""
         if not owner_name:
+            logger.debug(
+                "Profile name element has no text/desc, trying alternative sources."
+            )
+            # Try 1: sibling row_feed_photo_profile_imageview content-desc
+            # e.g. "Profile picture of youngvillageking7" or "Go to googlechrome1010's profile"
+            profile_imageview = post_owner_obj.sibling(
+                resourceIdMatches=ResourceID.ROW_FEED_PHOTO_PROFILE_IMAGEVIEW,
+            )
+            if profile_imageview.exists():
+                imageview_desc = profile_imageview.get_desc() or ""
+                if imageview_desc:
+                    if imageview_desc.startswith("Profile picture of "):
+                        owner_name = imageview_desc.replace(
+                            "Profile picture of ", ""
+                        ).strip()
+                    elif (
+                        imageview_desc.startswith("Go to ")
+                        and "'s profile" in imageview_desc
+                    ):
+                        owner_name = (
+                            imageview_desc.replace("Go to ", "")
+                            .replace("'s profile", "")
+                            .strip()
+                        )
+                if owner_name:
+                    logger.debug(
+                        f"Found owner name from profile imageview: {owner_name}"
+                    )
+
+            # Try 2: parent row_feed_profile_header content-desc
+            # e.g. "googlechrome1010 posted a video June 11"
+            if not owner_name:
+                profile_header = self.device.find(
+                    resourceIdMatches=ResourceID.ROW_FEED_PROFILE_HEADER,
+                )
+                if profile_header.exists():
+                    header_desc = profile_header.get_desc() or ""
+                    if header_desc and " posted " in header_desc:
+                        owner_name = header_desc.split(" posted ")[0].strip()
+                    if owner_name:
+                        logger.debug(
+                            f"Found owner name from profile header: {owner_name}"
+                        )
+
+            # Try 3: sibling row_feed_comment_textview_layout -> child Button content-desc
+            if not owner_name:
+                comment_layout = post_owner_obj.sibling(
+                    resourceIdMatches=ResourceID.ROW_FEED_COMMENT_TEXTVIEW_LAYOUT,
+                )
+                if comment_layout.exists():
+                    comment_child = comment_layout.child(
+                        className=ClassName.BUTTON,
+                    )
+                    if comment_child.exists():
+                        owner_name = comment_child.get_desc() or ""
+                    if owner_name:
+                        logger.debug(
+                            f"Found owner name from comment layout: {owner_name}"
+                        )
+
+        if not owner_name:
             logger.info("Can't find the owner name, need to use OCR.")
             try:
                 import pytesseract as pt
@@ -1467,9 +1558,11 @@ class PostsViewList:
                 logger.error(
                     "You need to install Tesseract (the engine: it depends on your system) in order to use OCR feature."
                 )
-        if owner_name.startswith("#"):
+        if owner_name and owner_name.startswith("#"):
             is_hashtag = True
             logger.debug("Looks like an hashtag, skip.")
+        if not owner_name:
+            owner_name = ""
         if ad_like_obj.exists():
             ad_labels = {"sponsored", "ad"}
             ad_like_txt = ad_like_obj.get_text() or ad_like_obj.get_desc() or ""

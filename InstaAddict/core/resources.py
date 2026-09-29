@@ -125,6 +125,9 @@ class ResourceID:
         )
         self.ROW_FEED_PHOTO_IMAGEVIEW = f"{APP_ID}:id/row_feed_photo_imageview"
         self.ROW_FEED_PHOTO_PROFILE_NAME = f"{APP_ID}:id/row_feed_photo_profile_name"
+        self.ROW_FEED_PHOTO_PROFILE_IMAGEVIEW = (
+            f"{APP_ID}:id/row_feed_photo_profile_imageview"
+        )
         self.ROW_FEED_TEXTVIEW_LIKES = f"{APP_ID}:id/row_feed_textview_likes"
         self.ROW_FEED_VIEW_GROUP_BUTTONS = f"{APP_ID}:id/row_feed_view_group_buttons"
         self.ROW_HASHTAG_TEXTVIEW_TAG_NAME = (
