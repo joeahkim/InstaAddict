@@ -28,6 +28,10 @@ class ResourceID:
         self.CAROUSEL_INDEX_INDICATOR_TEXT_VIEW = (
             f"{APP_ID}:id/carousel_index_indicator_text_view"
         )
+        self.CLIPS_AUTHOR_PROFILE_PIC = f"{APP_ID}:id/clips_author_profile_pic"
+        self.CLIPS_AUTHOR_USERNAME = f"{APP_ID}:id/clips_author_username"
+        self.CLIPS_CAPTION_COMPONENT = f"{APP_ID}:id/clips_caption_component"
+        self.CLIPS_MEDIA_COMPONENT = f"{APP_ID}:id/clips_media_component"
         self.CLIPS_VIDEO_CONTAINER = f"{APP_ID}:id/clips_video_container"
         self.COLLECTION_ROOT_VIEW = f"{APP_ID}:id/collection_root_view"
         self.COORDINATOR_ROOT_LAYOUT = f"{APP_ID}:id/coordinator_root_layout"

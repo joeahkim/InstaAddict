@@ -1115,6 +1115,13 @@ class PostsViewList:
                 )
                 return True, new_description, username, is_ad, is_hashtag, has_tags
             caption_text = self._find_caption_text_in_current_post(username)
+            if not caption_text:
+                # Reels layout fallback: clips_caption_component
+                clips_caption = self.device.find(
+                    resourceIdMatches=ResourceID.CLIPS_CAPTION_COMPONENT
+                )
+                if clips_caption.exists(Timeout.SHORT):
+                    caption_text = clips_caption.get_text()
             if caption_text:
                 new_description = caption_text.upper()
                 if new_description != last_description:
@@ -1244,6 +1251,15 @@ class PostsViewList:
                 break
 
         if not post_owner_clickable:
+            # Reels layout fallback: clips_author_username
+            post_owner_obj = self.device.find(
+                resourceIdMatches=ResourceID.CLIPS_AUTHOR_USERNAME
+            )
+            if post_owner_obj.exists(Timeout.SHORT):
+                post_owner_clickable = True
+                logger.debug("Found owner via clips_author_username (Reels layout).")
+
+        if not post_owner_clickable:
             logger.info("Can't find the owner name, skip.")
             return False, is_ad, is_hashtag
         if mode == Owner.OPEN:
@@ -1269,9 +1285,10 @@ class PostsViewList:
             return None, is_ad, is_hashtag
 
     def _get_post_owner_name(self):
-        return self.device.find(
-            resourceIdMatches=ResourceID.ROW_FEED_PHOTO_PROFILE_NAME
-        ).get_text()
+        obj = self.device.find(resourceIdMatches=ResourceID.ROW_FEED_PHOTO_PROFILE_NAME)
+        if not obj.exists():
+            obj = self.device.find(resourceIdMatches=ResourceID.CLIPS_AUTHOR_USERNAME)
+        return obj.get_text()
 
     def _describes_a_post(self, media):
         """IG 447+ moved the description from media_group to its inner image view."""
@@ -1544,6 +1561,32 @@ class PostsViewList:
                             f"Found owner name from comment layout: {owner_name}"
                         )
 
+            # Try 4: Reels layout — clips_author_username
+            if not owner_name:
+                clips_author = self.device.find(
+                    resourceIdMatches=ResourceID.CLIPS_AUTHOR_USERNAME
+                )
+                if clips_author.exists(Timeout.SHORT):
+                    owner_name = clips_author.get_text()
+                    if owner_name:
+                        logger.debug(
+                            f"Found owner name from clips_author_username: {owner_name}"
+                        )
+
+            # Try 5: Reels layout — clips_author_profile_pic content-desc
+            if not owner_name:
+                clips_pic = self.device.find(
+                    resourceIdMatches=ResourceID.CLIPS_AUTHOR_PROFILE_PIC
+                )
+                if clips_pic.exists(Timeout.SHORT):
+                    desc = clips_pic.get_desc()
+                    if desc and desc.startswith("Profile picture of "):
+                        owner_name = desc.replace("Profile picture of ", "").strip()
+                        if owner_name:
+                            logger.debug(
+                                f"Found owner name from clips profile pic: {owner_name}"
+                            )
+
         if not owner_name:
             logger.info("Can't find the owner name, need to use OCR.")
             try:
@@ -1784,7 +1827,9 @@ class OpenedPostView:
         """Detect the media type from the opened post itself.
         Used when the grid cell had no content description."""
         clips_container = self.device.find(
-            resourceIdMatches=case_insensitive_re(ResourceID.CLIPS_VIDEO_CONTAINER)
+            resourceIdMatches=case_insensitive_re(
+                f"{ResourceID.CLIPS_VIDEO_CONTAINER}|{ResourceID.CLIPS_MEDIA_COMPONENT}"
+            )
         )
         if clips_container.exists():
             logger.info("It's a Reel (detected after opening).")
