@@ -29,6 +29,9 @@ class ResourceID:
             f"{APP_ID}:id/carousel_index_indicator_text_view"
         )
         self.CLIPS_VIDEO_CONTAINER = f"{APP_ID}:id/clips_video_container"
+        self.CLIPS_VIEWER_CONTAINER = f"{APP_ID}:id/clips_viewer_container"
+        self.ROOT_CLIPS_LAYOUT = f"{APP_ID}:id/root_clips_layout"
+        self.CLIPS_UFI_COMPONENT = f"{APP_ID}:id/clips_ufi_component"
         self.COLLECTION_ROOT_VIEW = f"{APP_ID}:id/collection_root_view"
         self.COORDINATOR_ROOT_LAYOUT = f"{APP_ID}:id/coordinator_root_layout"
         self.DIALOG_ROOT_VIEW = f"{APP_ID}:id/dialog_root_view"
@@ -157,6 +160,9 @@ class ResourceID:
         self.ROW_PROFILE_HEADER_TEXTVIEW_POST_COUNT = f"{APP_ID}:id/row_profile_header_textview_post_count|{APP_ID}:id/profile_header_familiar_post_count_value"
         self.ROW_SEARCH_EDIT_TEXT = f"{APP_ID}:id/row_search_edit_text"
         self.ROW_SEARCH_USER_USERNAME = f"{APP_ID}:id/row_search_user_username"
+        self.ROW_SEARCH_KEYWORD_TITLE = f"{APP_ID}:id/row_search_keyword_title"
+        self.ROW_SEARCH_KEYWORD_SUBTITLE = f"{APP_ID}:id/row_search_keyword_subtitle"
+        self.ROW_SEARCH_USER_CONTAINER = f"{APP_ID}:id/row_search_user_container"
         self.ROW_SIMPLE_TEXT_TEXTVIEW = f"{APP_ID}:id/row_simple_text_textview"
         self.ROW_THREAD_COMPOSER_BUTTON_SEND = (
             f"{APP_ID}:id/row_thread_composer_button_send"
@@ -166,6 +172,11 @@ class ResourceID:
         self.ROW_USER_PRIMARY_NAME = f"{APP_ID}:id/row_user_primary_name"
         self.ROW_USER_TEXTVIEW = f"{APP_ID}:id/row_user_textview"
         self.SEARCH = f"{APP_ID}:id/search"
+        self.SERP_JOURNEY_HEADER_QUERY_TEXT = (
+            f"{APP_ID}:id/serp_journey_header_query_text"
+        )
+        self.CHIPS_TAB_BAR_CONTAINER = f"{APP_ID}:id/chips_tab_bar_container"
+        self.PRISM_CHIP_LABEL = f"{APP_ID}:id/igds_prism_chip_label"
         self.SECONDARY_LABEL = f"{APP_ID}:id/secondary_label"
         self.SEE_ALL_BUTTON = f"{APP_ID}:id/see_all_button"
         self.SORTING_ENTRY_ROW_ICON = f"{APP_ID}:id/sorting_entry_row_icon"
@@ -184,6 +195,7 @@ class ResourceID:
         self.TITLE_VIEW = f"{APP_ID}:id/title_view"
         self.TOOLBAR_LIKE_BUTTON = f"{APP_ID}:id/toolbar_like_button"
         self.UFI_STACK = f"{APP_ID}:id/ufi_stack"
+        self.UFI_CONTAINER = f"{self.UFI_STACK}|{self.CLIPS_UFI_COMPONENT}"
         self.UNIFIED_FOLLOW_LIST_TAB_LAYOUT = (
             f"{APP_ID}:id/unified_follow_list_tab_layout"
         )

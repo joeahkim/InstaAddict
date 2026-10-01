@@ -328,11 +328,150 @@ class SearchView:
         return None
 
     def _getUsernameRow(self, username):
+        """Old layout: exact row_search_user_username row.
+        New layout: account rendered as nickname title with the username in
+        the 'username • X followers' subtitle."""
+        subtitle_row = self.device.find(
+            resourceIdMatches=case_insensitive_re(
+                ResourceID.ROW_SEARCH_KEYWORD_SUBTITLE
+            ),
+            className=ClassName.TEXT_VIEW,
+            textMatches=f"{re.escape(username)}[\\s\\u00a0]*[•\\u2022].*",
+        )
+        if subtitle_row.exists(Timeout.ZERO):
+            return subtitle_row
         return self.device.find(
             resourceIdMatches=case_insensitive_re(ResourceID.ROW_SEARCH_USER_USERNAME),
             className=ClassName.TEXT_VIEW,
             textMatches=case_insensitive_re(username),
         )
+
+    def _serpMarkersVisible(self, timeout) -> bool:
+        return self.device.find(
+            resourceIdMatches=case_insensitive_re(
+                ResourceID.SERP_JOURNEY_HEADER_QUERY_TEXT
+            )
+        ).exists(timeout) or self.device.find(
+            resourceIdMatches=case_insensitive_re(ResourceID.CHIPS_TAB_BAR_CONTAINER)
+        ).exists(
+            Timeout.ZERO
+        )
+
+    def _isOnSerpPage(self) -> bool:
+        # If the profile actually opened, we are not on a SERP page. Check
+        # this first so the scroll-based recheck below never runs on a real
+        # profile (only subtitle-located accounts, whose row click opens the
+        # SERP overview, ever reach the scroll).
+        if self._isOnProfileHeader():
+            return False
+        if self._serpMarkersVisible(Timeout.SHORT):
+            return True
+        # SERP page may have opened pre-scrolled, hiding the header/chips
+        # above the fold; scroll back to the top and check again.
+        logger.debug("SERP markers not visible; scrolling to top to re-check.")
+        try:
+            info = self.device.get_info()
+            w = info["displayWidth"]
+            h = info["displayHeight"]
+            for _ in range(3):
+                self.device.swipe_points(
+                    w / 2, h * 0.3, w / 2, h * 0.85, random_x=False
+                )
+        except DeviceFacade.JsonRpcError as e:
+            logger.debug(f"Scroll-up failed: {e}")
+        return self._serpMarkersVisible(Timeout.SHORT)
+
+    def _clickSerpChip(self, label: str) -> bool:
+        chip = self.device.find(
+            resourceIdMatches=case_insensitive_re(ResourceID.PRISM_CHIP_LABEL),
+            textMatches=case_insensitive_re(label),
+        )
+        if not chip.exists(Timeout.SHORT):
+            return False
+        logger.debug(f"Clicking '{label}' chip on SERP page.")
+        for attempt in range(3):
+            try:
+                chip.click()
+            except DeviceFacade.JsonRpcError:
+                logger.debug("Chip label not clickable; tapping its center instead.")
+                try:
+                    b = chip.get_bounds()
+                    x = (b["left"] + b["right"]) // 2
+                    y = (b["top"] + b["bottom"]) // 2
+                    chip.click(coord=[x, y])
+                except Exception:
+                    return False
+            # success = chip selected (tab switched) OR the SERP chrome
+            # disappeared because the page morphed into old-style results
+            if chip.exists(Timeout.SHORT) and chip.get_property("selected"):
+                return True
+            if not self._serpMarkersVisible(Timeout.ZERO):
+                logger.debug(
+                    "SERP chrome gone after chip click; "
+                    "page morphed into results view."
+                )
+                return True
+            logger.debug(
+                f"'{label}' chip not selected after click {attempt + 1}; retrying."
+            )
+        return False
+
+    def _isOnProfileHeader(self) -> bool:
+        return self.device.find(
+            resourceIdMatches=case_insensitive_re(
+                f"{ResourceID.PROFILE_HEADER_AVATAR_CONTAINER_TOP_LEFT_STUB}"
+                f"|{ResourceID.ROW_PROFILE_HEADER_IMAGEVIEW}"
+            )
+        ).exists(Timeout.SHORT)
+
+    def _openTargetFromSerp(self, target: str, job: str = "account") -> bool:
+        is_hashtag = "hashtag" in job
+        chip_label = "Tags" if is_hashtag else "Accounts"
+        logger.debug(f"Search opened a SERP overview page; switching to {chip_label}.")
+        if not self._clickSerpChip(chip_label):
+            logger.warning(f"{chip_label} chip not found on SERP page.")
+            return False
+        # the results list may be scrolled; scroll it back to the top so the
+        # username row is on screen
+        try:
+            grid = self.device.find(
+                resourceIdMatches=case_insensitive_re(ResourceID.RECYCLER_VIEW)
+            )
+            if grid.exists(Timeout.ZERO):
+                grid.fling(Direction.UP)
+        except DeviceFacade.JsonRpcError as e:
+            logger.debug(f"Scroll-to-top of results failed: {e}")
+        # find the target row: hashtag row for hashtag jobs, otherwise the
+        # account row (old user_username layout or new keyword-subtitle layout)
+        row = (
+            self._getHashtagRow(target.lstrip("#"))
+            if is_hashtag
+            else self._getUsernameRow(target)
+        )
+        if row.exists(Timeout.MEDIUM):
+            logger.debug(f"Clicking result row for {target} on {chip_label} tab.")
+            for attempt in range(2):
+                try:
+                    row.click()
+                except DeviceFacade.JsonRpcError:
+                    logger.warning(f"Failed to click result row for {target}.")
+                    return False
+                if is_hashtag:
+                    if not self._isOnSerpPage():
+                        return True
+                elif self._isOnProfileHeader():
+                    return True
+                if self._isOnSerpPage():
+                    logger.debug("Still on SERP after row click; retrying row click.")
+                    continue
+                # neither SERP nor profile header: give it one more check
+                if is_hashtag or self._isOnProfileHeader():
+                    return True
+            return (self._isOnProfileHeader() if is_hashtag else True) and (
+                not self._isOnSerpPage()
+            )
+        logger.warning(f"{target} not found on SERP {chip_label} tab.")
+        return False
 
     def _getHashtagRow(self, hashtag):
         return self.device.find(
@@ -429,6 +568,8 @@ class SearchView:
 
         if self._check_current_view(target, job):
             logger.info(f"{target} is in recent history.")
+            if self._isOnSerpPage():
+                return self._openTargetFromSerp(target, job)
             return True
 
         try:
@@ -453,15 +594,20 @@ class SearchView:
                 return False
         if self._check_current_view(target, job):
             logger.info(f"{target} is in top view.")
+            if self._isOnSerpPage():
+                return self._openTargetFromSerp(target, job)
             return True
         echo_text = self.device.find(resourceId=ResourceID.ECHO_TEXT)
         if echo_text.exists(Timeout.SHORT):
             logger.debug("Pressing on see all results.")
             echo_text.click()
-        # at this point we have the tabs available
-        self._switch_to_target_tag(job)
-        if self._check_current_view(target, job, in_place_tab=True):
-            return True
+            # at this point we have the tabs available
+            self._switch_to_target_tag(job)
+            if self._check_current_view(target, job, in_place_tab=True):
+                if self._isOnSerpPage():
+                    return self._openTargetFromSerp(target, job)
+                return True
+        logger.warning(f"{target} not found in search results; skipping.")
         return False
 
     def _switch_to_target_tag(self, job: str):
@@ -485,11 +631,13 @@ class SearchView:
                 return False
             else:
                 obj = self._getPlaceRow()
-        else:
+        elif "hashtag" in job:
             obj = self.device.find(
                 text=target,
                 resourceIdMatches=ResourceID.SEARCH_ROW_ITEM,
             )
+        else:
+            obj = self._getUsernameRow(target)
         if obj.exists():
             obj.click()
             return True
@@ -1832,7 +1980,14 @@ class OpenedPostView:
                     direction=Direction.DOWN, delta_y=100
                 )
                 attempt += 1
-        return None
+        # IG dropped zoomable_view_container from plain photos (bare media_group
+        # remains), so MEDIA_CONTAINER no longer matches them. Without this
+        # fallback _is_post_liked can't see an already-liked photo and the
+        # heart click toggles the like OFF.
+        like_button = self.device.find(
+            resourceIdMatches=ResourceID.ROW_FEED_BUTTON_LIKE
+        )
+        return like_button if like_button.exists(Timeout.SHORT) else None
 
     def _is_post_liked(self) -> Tuple[Optional[bool], Optional[DeviceFacade.View]]:
         """
@@ -1928,6 +2083,8 @@ class OpenedPostView:
         :return: None
         :rtype: None
         """
+        time_left = 0
+        watching_time = 0
         if (
             media_type
             in (MediaType.IGTV, MediaType.REEL, MediaType.VIDEO, MediaType.UNKNOWN)
@@ -1948,6 +2105,13 @@ class OpenedPostView:
             logger.info(
                 f"Watching video for {watching_time if watching_time > 0 else 'few '}s."
             )
+            if media_type == MediaType.REEL and in_fullscreen:
+                # The reel viewer exposes no readable duration: when the
+                # configured watch time is longer than the reel, it loops and
+                # can fall back to the in-feed view. Watch in short chunks and
+                # stop as soon as the fullscreen clips viewer is gone.
+                self._watch_reel_bounded(watching_time)
+                return None
 
         elif (
             media_type in (MediaType.CAROUSEL, MediaType.PHOTO)
@@ -1972,6 +2136,38 @@ class OpenedPostView:
                 return 0
         return 0
 
+    def _is_reel_viewer_open(self) -> bool:
+        """The fullscreen clips viewer (root_clips_layout / clips_viewer_container)
+        only exists while the reel player is showing; it disappears when IG
+        falls back to the in-feed view."""
+        clips_viewer = self.device.find(
+            resourceIdMatches=case_insensitive_re(
+                f"{ResourceID.CLIPS_VIEWER_CONTAINER}|{ResourceID.ROOT_CLIPS_LAYOUT}"
+            )
+        )
+        return clips_viewer.exists()
+
+    def _watch_reel_bounded(self, watching_time: int) -> None:
+        """Watch a reel without letting it loop past the configured time.
+
+        Reels expose no readable duration, so a configured watch time longer
+        than the reel makes it loop; after a couple of loops IG sometimes
+        reverts to the in-feed view mid-interaction. Poll in short chunks and
+        abort early once the fullscreen reel viewer is gone or a loop restart
+        (video position resets) is detected."""
+        CHUNK = 2
+        elapsed = 0
+        while elapsed < watching_time:
+            sleep(min(CHUNK, watching_time - elapsed))
+            elapsed += CHUNK
+            if elapsed >= watching_time:
+                break
+            if not self._is_reel_viewer_open():
+                logger.info(
+                    "Reel viewer closed (loop fallback?) — stopping watch early."
+                )
+                return
+
     def _is_video_in_fullscreen(self) -> Tuple[bool, DeviceFacade.View]:
         """
         Check if video is in full-screen mode
@@ -1992,7 +2188,33 @@ class OpenedPostView:
         )
         if like_button.exists():
             return like_button.get_selected(), like_button
+        # Reels/videos opened in the post viewer (feed-style layout) use the
+        # feed like button, not the fullscreen sidebar one.
+        feed_like_button = self.device.find(
+            resourceIdMatches=case_insensitive_re(ResourceID.ROW_FEED_BUTTON_LIKE)
+        )
+        if feed_like_button.exists():
+            return feed_like_button.get_selected(), feed_like_button
         return False, None
+
+    def _is_video_liked_with_reveal(
+        self,
+    ) -> Tuple[Optional[bool], Optional[DeviceFacade.View]]:
+        """Same as _is_video_liked, but when no like button is visible at all
+        and the video is fullscreen, tap once to reveal the reel viewer chrome
+        (IG hides the action bar until a tap) and re-check."""
+        liked, like_button = self._is_video_liked()
+        if like_button is not None:
+            return liked, like_button
+        full_screen, video = self._is_video_in_fullscreen()
+        if full_screen:
+            logger.debug("Revealing video chrome to check the like state...")
+            video.click()
+            # exists() polls with a 0s timeout by default, so wait for the
+            # chrome to render before re-checking.
+            DeviceFacade.sleep_mode(SleepTime.SHORT)
+            liked, like_button = self._is_video_liked()
+        return liked, like_button
 
     def _has_tags(self) -> bool:
         tags_icon = self.device.find(
@@ -2007,19 +2229,22 @@ class OpenedPostView:
         :return: video has been liked
         :rtype: bool
         """
-        sidebar = self.device.find(
-            resourceIdMatches=case_insensitive_re(ResourceID.UFI_STACK)
-        )
         liked = False
         full_screen, obj = self._is_video_in_fullscreen()
         if full_screen:
             logger.info("Liking video.")
             obj.double_click()
             UniversalActions.detect_block(self.device)
-            if not sidebar.exists():
+            # Covers both reel viewer layouts: the feed-style post viewer
+            # (row_feed_button_like) and the fullscreen sidebar (like_button).
+            liked, like_button = self._is_video_liked()
+            if not liked and like_button is None:
+                # Chrome hidden: reveal it and re-check before falling back
+                # to the heart button.
                 logger.debug("Showing sidebar...")
                 obj.click()
-            liked, like_button = self._is_video_liked()
+                DeviceFacade.sleep_mode(SleepTime.SHORT)
+                liked, like_button = self._is_video_liked()
             if not liked:
                 logger.info("Double click failed, clicking on the little heart ❤️.")
                 if like_button is not None:
@@ -2027,7 +2252,7 @@ class OpenedPostView:
                     UniversalActions.detect_block(self.device)
                 else:
                     logger.error("We are seeing another video.")
-                liked, _ = self._is_video_liked()
+                    liked, _ = self._is_video_liked()
         return liked
 
     def _getListViewLikers(self):
@@ -2095,6 +2320,12 @@ class PostsGridView:
         if not post_view.exists():
             return None, None, None
         content_desc = post_view.ui_info()["contentDescription"]
+        if not content_desc:
+            # IG moved the grid cell description from the cell container to
+            # its inner image_button view (same shift the feed had in 447+).
+            inner_button = post_view.child(resourceId=ResourceID.IMAGE_BUTTON)
+            if inner_button.exists():
+                content_desc = inner_button.get_desc()
         media_type, obj_count = PostsViewList.detect_media_type(content_desc)
         opened_post_view = OpenedPostView(self.device)
         for attempt in range(2):
@@ -2506,28 +2737,48 @@ class ProfileView(ActionBarView):
                 )
                 continue
 
-            element_to_swipe_over = element_to_swipe_over_obj.get_bounds()["top"]
-            try:
-                bar_container = self.device.find(
-                    resourceIdMatches=ResourceID.ACTION_BAR_CONTAINER
-                ).get_bounds()["bottom"]
+        element_to_swipe_over = element_to_swipe_over_obj.get_bounds()["top"]
 
-                logger.info("Scrolled down to see more posts.")
-                self.device.swipe_points(
-                    displayWidth / 2,
-                    element_to_swipe_over,
-                    displayWidth / 2,
-                    bar_container,
-                )
-                return element_to_swipe_over - bar_container
-            except Exception as e:
-                logger.debug(f"Exception: {e}")
-                logger.info("I'm not able to scroll down.")
-                return 0
-        logger.warning(
-            "Maybe a private/empty profile in which check failed or after whatching stories the view moves down :S.. Skip"
+        def _get_swipe_anchor():
+            # Newer IG builds removed/renamed action_bar_container on profiles,
+            # so we can't rely on a single resource id. Try the known bar ids
+            # first, then fall back to just below the status bar.
+            for bar_res in (
+                ResourceID.ACTION_BAR_CONTAINER,
+                ResourceID.ACTION_BAR_NEW_TITLE_CONTAINER,
+                ResourceID.ACTION_BAR_TITLE,
+                ResourceID.ACTION_BAR_LARGE_TITLE,
+            ):
+                bar = self.device.find(resourceIdMatches=bar_res)
+                if bar.exists(Timeout.SHORT):
+                    return bar.get_bounds()["bottom"]
+            raise DeviceFacade.JsonRpcError("No action bar view found.")
+
+        try:
+            bar_container = _get_swipe_anchor()
+        except Exception as e:
+            logger.debug(f"Exception: {e}")
+            status_bar_height = self.device.get_info().get("statusBarHeight")
+            displayHeight = self.device.get_info()["displayHeight"]
+            if not status_bar_height:
+                status_bar_height = int(displayHeight * 0.03)
+            bar_container = int(status_bar_height)
+
+        swipe_amount = element_to_swipe_over - bar_container
+        if swipe_amount <= 0:
+            logger.warning(
+                "Maybe a private/empty profile in which check failed or after watching stories the view moves down :S.. Skip"
+            )
+            return -1
+
+        logger.info("Scrolled down to see more posts.")
+        self.device.swipe_points(
+            displayWidth / 2,
+            element_to_swipe_over,
+            displayWidth / 2,
+            bar_container,
         )
-        return -1
+        return swipe_amount
 
     def navigateToPostsTab(self):
         self._navigateToTab(TabBarText.POSTS_CONTENT_DESC)
