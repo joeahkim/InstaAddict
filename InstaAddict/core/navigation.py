@@ -74,7 +74,7 @@ def nav_to_hashtag_or_place(device, target, current_job):
         if recent_tab.exists(Timeout.MEDIUM):
             recent_tab.click()
         else:
-            return False
+            logger.info("Recent tab not found, proceeding with current view.")
 
         if UniversalActions(device)._check_if_no_posts():
             UniversalActions(device)._reload_page()
