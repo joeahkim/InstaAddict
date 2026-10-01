@@ -1876,7 +1876,7 @@ class OpenedPostView:
                 like_button = self._get_post_like_button()
                 if like_button is not None:
                     like_button.click()
-                    liked, _ = self._is_post_liked()
+                    liked = like_button.get_selected()
                 else:
                     logger.warning("Can't find the like button object!")
             else:
@@ -1885,7 +1885,7 @@ class OpenedPostView:
                 if not liked and like_button is not None:
                     logger.info("Double click failed, clicking on the little heart ❤️.")
                     like_button.click()
-                    liked, _ = self._is_post_liked()
+                    liked = like_button.get_selected()
         return liked
 
     def start_video(self) -> bool:
@@ -2812,7 +2812,9 @@ class UniversalActions:
         if not args.disable_block_detection:
             return False
         logger.debug("Checking for block...")
-        if "blocked" in device.deviceV2.toast.get_message(1.0, 2.0, default=""):
+        if "blocked" in device.deviceV2.toast.get_message(
+            0.1, uniform(0.3, 0.5), default=""
+        ):
             logger.warning("Toast detected!")
         serius_block = device.find(
             className=ClassName.IMAGE,

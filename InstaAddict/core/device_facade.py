@@ -16,6 +16,13 @@ from InstaAddict.core.utils import random_sleep
 
 logger = logging.getLogger(__name__)
 
+args = None
+
+
+def load_config(config):
+    global args
+    args = config.args
+
 
 def create_device(device_id, app_id):
     try:
@@ -26,16 +33,13 @@ def create_device(device_id, app_id):
 
 
 def get_device_info(device):
-    logger.debug(
-        f"Phone Name: {device.get_info()['productName']}, SDK Version: {device.get_info()['sdkInt']}"
-    )
-    if int(device.get_info()["sdkInt"]) < 19:
+    info = device.get_info()
+    logger.debug(f"Phone Name: {info['productName']}, SDK Version: {info['sdkInt']}")
+    if int(info["sdkInt"]) < 19:
         logger.warning("Only Android 4.4+ (SDK 19+) devices are supported!")
+    logger.debug(f"Screen dimension: {info['displayWidth']}x{info['displayHeight']}")
     logger.debug(
-        f"Screen dimension: {device.get_info()['displayWidth']}x{device.get_info()['displayHeight']}"
-    )
-    logger.debug(
-        f"Screen resolution: {device.get_info()['displaySizeDpX']}x{device.get_info()['displaySizeDpY']}"
+        f"Screen resolution: {info['displaySizeDpX']}x{info['displaySizeDpY']}"
     )
     logger.debug(f"Device ID: {device.deviceV2.serial}")
 
@@ -91,6 +95,9 @@ class DeviceFacade:
                 )
             else:
                 self.deviceV2 = uiautomator2.connect_adb_wifi(f"{device_id}")
+            self.deviceV2.jsonrpc.setConfigurator(
+                {"waitForIdleTimeout": 0, "waitForSelectorTimeout": 0}
+            )
         except ImportError:
             raise ImportError("Please install uiautomator2: pip3 install uiautomator2")
 
@@ -670,16 +677,19 @@ class DeviceFacade:
         def get_ui_timeout(ui_timeout: Timeout) -> int:
             ui_timeout = Timeout.ZERO if ui_timeout is None else ui_timeout
             if ui_timeout == Timeout.ZERO:
-                ui_timeout = 0
+                return 0
             elif ui_timeout == Timeout.TINY:
-                ui_timeout = 1
+                base = 1
             elif ui_timeout == Timeout.SHORT:
-                ui_timeout = 3
+                base = 3
             elif ui_timeout == Timeout.MEDIUM:
-                ui_timeout = 5
+                base = 5
             elif ui_timeout == Timeout.LONG:
-                ui_timeout = 8
-            return ui_timeout
+                base = 8
+            else:
+                base = 5
+            scale = float(args.timeout_scale) if args is not None else 1.0
+            return max(1, int(base / scale))
 
         def get_text(self, error=True, index=None):
             try:
