@@ -122,6 +122,14 @@ class InteractBloggerPostLikers(Plugin):
                 )
                 self.state.is_job_completed = True
 
+            @run_safely(
+                device=device,
+                device_id=self.device_id,
+                sessions=self.sessions,
+                session_state=self.session_state,
+                screen_record=self.args.screen_record,
+                configs=configs,
+            )
             def job_file():
                 self.handle_blogger_from_file(
                     device,
