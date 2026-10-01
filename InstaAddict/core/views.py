@@ -132,10 +132,17 @@ class TabBarView:
         return ProfileView(self.device, is_own_profile=True)
 
     def _get_new_profile_position(self) -> Optional[DeviceFacade.View]:
-        buttons = self.device.find(className=ResourceID.BUTTON)
-        for button in buttons:
-            if button.get_desc() == "Profile":
-                return button
+        # Language-independent: profile is always the last tab button
+        tab_bar = self._getTabBar()
+        if not tab_bar.exists(Timeout.SHORT):
+            return None
+        buttons = tab_bar.child(classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX)
+        n = buttons.count_items()
+        if n > 0:
+            return tab_bar.child(
+                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                instance=n - 1,
+            )
         return None
 
     def _navigateTo(self, tab: TabBarTabs):
@@ -2185,13 +2192,25 @@ class ProfileView(ActionBarView):
             return None, None, None
 
     def _new_ui_profile_button(self) -> bool:
-        found = False
-        buttons = self.device.find(className=ResourceID.BUTTON)
-        for button in buttons:
-            if button.get_desc() == "Profile":
-                button.click()
-                found = True
-        return found
+        # Language-independent: profile is always the last tab button
+        tab_bar = self.device.find(
+            resourceIdMatches=ResourceID.TAB_BAR,
+            className=ClassName.LINEAR_LAYOUT,
+        )
+        if not tab_bar.exists(Timeout.SHORT):
+            logger.debug("_new_ui_profile_button: tab_bar not found")
+            return False
+        buttons = tab_bar.child(classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX)
+        n = buttons.count_items()
+        logger.debug(f"_new_ui_profile_button: tab_bar found, {n} child buttons")
+        if n > 0:
+            last_btn = tab_bar.child(
+                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                instance=n - 1,
+            )
+            last_btn.click()
+            return True
+        return False
 
     def _old_ui_profile_button(self) -> bool:
         found = False
@@ -2202,12 +2221,13 @@ class ProfileView(ActionBarView):
         return found
 
     def click_on_avatar(self):
-        while True:
+        for _ in range(10):
             if self._new_ui_profile_button():
-                break
+                return
             if self._old_ui_profile_button():
-                break
+                return
             self.device.back()
+        logger.error("Could not find Profile tab after 10 retries.")
 
     def getFollowButton(self):
         button_regex = f"{ClassName.BUTTON}|{ClassName.TEXT_VIEW}"
