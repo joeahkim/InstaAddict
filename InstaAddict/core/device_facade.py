@@ -674,22 +674,22 @@ class DeviceFacade:
                 raise DeviceFacade.JsonRpcError(e)
 
         @staticmethod
-        def get_ui_timeout(ui_timeout: Timeout) -> int:
+        def get_ui_timeout(ui_timeout: Timeout) -> float:
             ui_timeout = Timeout.ZERO if ui_timeout is None else ui_timeout
             if ui_timeout == Timeout.ZERO:
                 return 0
             elif ui_timeout == Timeout.TINY:
-                base = 1
+                base = uniform(0.1, 0.5)
             elif ui_timeout == Timeout.SHORT:
-                base = 3
+                base = uniform(1.0, 2.0)
             elif ui_timeout == Timeout.MEDIUM:
-                base = 5
+                base = uniform(3.0, 5.0)
             elif ui_timeout == Timeout.LONG:
-                base = 8
+                base = uniform(6.0, 8.0)
             else:
-                base = 5
+                base = uniform(3.0, 5.0)
             scale = float(args.timeout_scale) if args is not None else 1.0
-            return max(1, int(base / scale))
+            return max(0.1, base / scale)
 
         def get_text(self, error=True, index=None):
             try:
