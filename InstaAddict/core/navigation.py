@@ -50,6 +50,12 @@ def nav_to_blogger(device, username, current_job):
             return False
 
         profile_view = ProfileView(device, is_own_profile=False)
+        if (_to_followers or _to_following) and profile_view.isPrivateAccount():
+            logger.info(
+                f"@{username} is a private account, can't open its "
+                f"{'followers' if _to_followers else 'following'}. Skip."
+            )
+            return False
         if _to_followers:
             logger.info(f"Open @{username} followers.")
             profile_view.navigateToFollowers()
