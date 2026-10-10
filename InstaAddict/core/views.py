@@ -2193,10 +2193,7 @@ class ProfileView(ActionBarView):
 
     def _new_ui_profile_button(self) -> bool:
         # Language-independent: profile is always the last tab button
-        tab_bar = self.device.find(
-            resourceIdMatches=ResourceID.TAB_BAR,
-            className=ClassName.LINEAR_LAYOUT,
-        )
+        tab_bar = TabBarView(self.device)._getTabBar()
         if not tab_bar.exists(Timeout.SHORT):
             logger.debug("_new_ui_profile_button: tab_bar not found")
             return False
