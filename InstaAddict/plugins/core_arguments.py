@@ -186,6 +186,13 @@ class CoreArguments(Plugin):
                 "default": 1,
             },
             {
+                "arg": "--timeout-scale",
+                "nargs": None,
+                "help": "divides all UI wait timeouts - speeds up (>1) or slows down (<1) element detection waits",
+                "metavar": 1,
+                "default": 1,
+            },
+            {
                 "arg": "--screen-sleep",
                 "help": "save your screen by turning it off during the inactive time, disabled by default",
                 "action": "store_true",

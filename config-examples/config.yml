@@ -16,6 +16,7 @@ allow-untested-ig-version: false # Using an untested version of IG would cause u
 screen-sleep: true
 screen-record: false
 speed-multiplier: 1
+timeout-scale: 1 # divides UI wait timeouts: 2 = half the wait, 3 = third.
 debug: false
 close-apps: false
 kill-atx-agent: false
