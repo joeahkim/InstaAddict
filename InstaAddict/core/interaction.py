@@ -294,8 +294,19 @@ def interact_with_user(
                     opened_post_view.start_video()
                     video_opened = opened_post_view.open_video()
                     if video_opened:
-                        opened_post_view.watch_media(media_type)
-                        like_succeed = opened_post_view.like_video()
+                        # The pre-check above runs on the profile grid, before
+                        # the reel viewer has rendered its like button, so it
+                        # can't see an already-liked video. Re-check now that
+                        # the viewer is fullscreen; this also reveals hidden
+                        # reel chrome to reach the like button.
+                        already_liked, _ = (
+                            opened_post_view._is_video_liked_with_reveal()
+                        )
+                        if already_liked:
+                            logger.info("Post already liked!")
+                        else:
+                            opened_post_view.watch_media(media_type)
+                            like_succeed = opened_post_view.like_video()
                         logger.debug("Closing video...")
                         device.back()
                 elif media_type in (
