@@ -16,6 +16,7 @@ class ResourceID:
         self.ACTION_BAR_TITLE_AUTO_SIZE = (
             f"{APP_ID}:id/action_bar_large_title_auto_size"
         )
+        self.ACTION_BAR_TITLE_VIEW = f"{APP_ID}:id/action_bar_title_view"
         self.ACTION_BAR_TITLE_CHEVRON = f"{APP_ID}:id/action_bar_title_chevron"
         self.ACTION_ICON = f"{APP_ID}:id/action_icon"
         self.ACTION_SHEET_ROW_TEXT_VIEW = f"{APP_ID}:id/action_sheet_row_text_view"
@@ -28,6 +29,7 @@ class ResourceID:
         self.CAROUSEL_INDEX_INDICATOR_TEXT_VIEW = (
             f"{APP_ID}:id/carousel_index_indicator_text_view"
         )
+        self.CLIPS_AUTHOR_USERNAME = f"{APP_ID}:id/clips_author_username"
         self.CLIPS_VIDEO_CONTAINER = f"{APP_ID}:id/clips_video_container"
         self.COLLECTION_ROOT_VIEW = f"{APP_ID}:id/collection_root_view"
         self.COORDINATOR_ROOT_LAYOUT = f"{APP_ID}:id/coordinator_root_layout"

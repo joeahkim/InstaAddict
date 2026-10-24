@@ -933,7 +933,7 @@ def iterate_over_followers(
             list_view = device.find(
                 resourceId=self.ResourceID.LIST, className=ClassName.LIST_VIEW
             )
-            if not list_view.exists():
+            if not list_view.exists(Timeout.MEDIUM):
                 logger.error(
                     "Cannot find the list of followers. Trying to press back again."
                 )
