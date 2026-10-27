@@ -764,13 +764,6 @@ def iterate_over_followers(
         className=ClassName.LINEAR_LAYOUT,
     ).wait(Timeout.LONG)
 
-    def scrolled_to_top():
-        row_search = device.find(
-            resourceId=self.ResourceID.ROW_SEARCH_EDIT_TEXT,
-            className=ClassName.EDIT_TEXT,
-        )
-        return row_search.exists()
-
     while True:
         logger.info("Iterate over visible followers.")
         screen_iterated_followers = []
@@ -870,23 +863,7 @@ def iterate_over_followers(
                 extra={"color": f"{Fore.GREEN}"},
             )
 
-        if is_myself and scrolled_to_top():
-            logger.info("Scrolled to top, finish.", extra={"color": f"{Fore.GREEN}"})
-            # Navigate back to SEARCH after finishing followers iteration
-            # First back goes to blogger's profile, second back goes to SEARCH
-            logger.info("Navigating back to SEARCH")
-            device.back()
-            device.back()
-            # Check if we landed on active search-input screen (no tab bar)
-            # If so, press back again to dismiss it
-            search_input = device.find(
-                resourceId=self.ResourceID.ACTION_BAR_SEARCH_EDIT_TEXT
-            )
-            if search_input.exists():
-                logger.debug("On active search-input screen, pressing back to dismiss")
-                device.back()
-            return
-        elif len(screen_iterated_followers) > 0:
+        if len(screen_iterated_followers) > 0:
             load_more_button = device.find(
                 resourceId=self.ResourceID.ROW_LOAD_MORE_BUTTON
             )
@@ -943,44 +920,40 @@ def iterate_over_followers(
                     className=ClassName.LIST_VIEW,
                 )
 
-            if is_myself:
-                logger.info("Need to scroll now", extra={"color": f"{Fore.GREEN}"})
-                list_view.scroll(Direction.UP)
-            else:
-                pressed_retry = False
-                if load_more_button_exists:
-                    retry_button = load_more_button.child(
-                        className=ClassName.IMAGE_VIEW,
-                        descriptionMatches=case_insensitive_re("Retry"),
-                    )
+            pressed_retry = False
+            if load_more_button_exists:
+                retry_button = load_more_button.child(
+                    className=ClassName.IMAGE_VIEW,
+                    descriptionMatches=case_insensitive_re("Retry"),
+                )
+                if retry_button.exists():
+                    random_sleep()
+                    """It exist but can disappear without pressing on it"""
                     if retry_button.exists():
-                        random_sleep()
-                        """It exist but can disappear without pressing on it"""
-                        if retry_button.exists():
-                            logger.info('Press "Load" button and wait few seconds.')
-                            retry_button.click_retry()
-                            random_sleep(5, 10, modulable=False)
-                            pressed_retry = True
+                        logger.info('Press "Load" button and wait few seconds.')
+                        retry_button.click_retry()
+                        random_sleep(5, 10, modulable=False)
+                        pressed_retry = True
 
-                if need_swipe and not pressed_retry:
-                    scroll_end_detector.notify_skipped_all()
-                    if scroll_end_detector.is_skipped_limit_reached():
-                        return
-                    if scroll_end_detector.is_fling_limit_reached():
-                        logger.info(
-                            "Limit of all followers skipped reached, let's fling.",
-                            extra={"color": f"{Fore.GREEN}"},
-                        )
-                        list_view.fling(Direction.DOWN)
-                    else:
-                        logger.info(
-                            "All followers skipped, let's scroll.",
-                            extra={"color": f"{Fore.GREEN}"},
-                        )
-                        list_view.scroll(Direction.DOWN)
+            if need_swipe and not pressed_retry:
+                scroll_end_detector.notify_skipped_all()
+                if scroll_end_detector.is_skipped_limit_reached():
+                    return
+                if scroll_end_detector.is_fling_limit_reached():
+                    logger.info(
+                        "Limit of all followers skipped reached, let's fling.",
+                        extra={"color": f"{Fore.GREEN}"},
+                    )
+                    list_view.fling(Direction.DOWN)
                 else:
-                    logger.info("Need to scroll now", extra={"color": f"{Fore.GREEN}"})
+                    logger.info(
+                        "All followers skipped, let's scroll.",
+                        extra={"color": f"{Fore.GREEN}"},
+                    )
                     list_view.scroll(Direction.DOWN)
+            else:
+                logger.info("Need to scroll now", extra={"color": f"{Fore.GREEN}"})
+                list_view.scroll(Direction.DOWN)
         else:
             logger.info(
                 "No followers were iterated, finish.",
