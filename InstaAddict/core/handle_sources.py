@@ -367,7 +367,17 @@ def handle_likers(
             row_height, n_users = inspect_current_view(user_container)
             try:
                 for item in user_container:
-                    cur_row_height = item.get_height()
+                    try:
+                        cur_row_height = item.get_height()
+                    except DeviceFacade.JsonRpcError:
+                        # The likers sheet re-renders after coming back from a
+                        # profile, rows grabbed before are gone: treat them as
+                        # end of screen instead of crashing.
+                        logger.info(
+                            "Item no longer visible: reached end of the screen.",
+                            extra={"color": f"{Fore.GREEN}"},
+                        )
+                        break
                     if cur_row_height < row_height:
                         continue
                     element_opened = False
