@@ -2632,24 +2632,31 @@ class ProfileView(ActionBarView):
                 )
                 continue
 
-            element_to_swipe_over = element_to_swipe_over_obj.get_bounds()["top"]
-            try:
-                bar_container = self.device.find(
-                    resourceIdMatches=ResourceID.ACTION_BAR_CONTAINER
-                ).get_bounds()["bottom"]
+        if not element_to_swipe_over_obj.exists():
+            logger.warning(
+                "profile_tabs_container not found: the profile grid isn't visible "
+                "(a story/media viewer probably stayed open). Skip."
+            )
+            return -1
 
-                logger.info("Scrolled down to see more posts.")
-                self.device.swipe_points(
-                    displayWidth / 2,
-                    element_to_swipe_over,
-                    displayWidth / 2,
-                    bar_container,
-                )
-                return element_to_swipe_over - bar_container
-            except Exception as e:
-                logger.debug(f"Exception: {e}")
-                logger.info("I'm not able to scroll down.")
-                return 0
+        element_to_swipe_over = element_to_swipe_over_obj.get_bounds()["top"]
+        try:
+            bar_container = self.device.find(
+                resourceIdMatches=ResourceID.ACTION_BAR_CONTAINER
+            ).get_bounds()["bottom"]
+
+            logger.info("Scrolled down to see more posts.")
+            self.device.swipe_points(
+                displayWidth / 2,
+                element_to_swipe_over,
+                displayWidth / 2,
+                bar_container,
+            )
+            return element_to_swipe_over - bar_container
+        except Exception as e:
+            logger.debug(f"Exception: {e}")
+            logger.info("I'm not able to scroll down.")
+            return 0
         logger.warning(
             "Maybe a private/empty profile in which check failed or after whatching stories the view moves down :S.. Skip"
         )
