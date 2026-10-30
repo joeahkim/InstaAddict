@@ -1,4 +1,7 @@
 import logging
+import re
+import time
+import xml.etree.ElementTree as ET
 import string
 from datetime import datetime
 from enum import Enum, auto
@@ -354,6 +357,13 @@ class DeviceFacade:
     class View:
         deviceV2 = None  # uiautomator2
         viewV2 = None  # uiautomator2
+        # Stale-selector-engine detection (openatx/uiautomator2#689):
+        # when the selector RPC misses repeatedly but dump_hierarchy still
+        # sees nodes, exists() falls back to matching the dumped hierarchy.
+        _MISS_STREAK = 0
+        _STALE_UNTIL = 0.0
+        _STALE_MISS_THRESHOLD = 3
+        _STALE_WINDOW = 2.0
 
         def __init__(self, view, device):
             self.viewV2 = view
@@ -498,11 +508,19 @@ class DeviceFacade:
                 logger.debug(
                     f"Single click in ({x_abs},{y_abs}). Surface: ({visible_bounds['left']}-{visible_bounds['right']},{visible_bounds['top']}-{visible_bounds['bottom']})"
                 )
-                self.viewV2.click(
-                    self.get_ui_timeout(Timeout.LONG),
-                    offset=(x_offset, y_offset),
-                )
-                DeviceFacade.sleep_mode(sleep)
+                try:
+                    self.viewV2.click(
+                        self.get_ui_timeout(Timeout.LONG),
+                        offset=(x_offset, y_offset),
+                    )
+                except Exception:
+                    # selector engine lost the node (stale cache) though the
+                    # hierarchy dump still reports its bounds: tap the coords
+                    logger.debug(
+                        "Click via selector failed; tapping coordinates from hierarchy dump."
+                    )
+                    self.deviceV2.click(x_abs, y_abs)
+                    DeviceFacade.sleep_mode(sleep)
 
             except Exception as e:
                 if crash_report_if_fails:
@@ -585,7 +603,67 @@ class DeviceFacade:
             except Exception as e:
                 raise DeviceFacade.JsonRpcError(e)
 
-        def exists(self, ui_timeout=None, ignore_bug: bool = False) -> bool:
+        def _selector_matches_node(self, node) -> bool:
+            """Best-effort match of this view's selector against
+            a hierarchy-dump node. Only the criteria this
+            codebase actually sets are supported."""
+            selector = getattr(self.viewV2, "selector", None)
+            if selector is None or selector.get("childOrSibling"):
+                # chained child/sibling lookups cannot be matched
+                # reliably against a flat hierarchy dump
+                return False
+            for field in ("resourceId", "text", "description", "className"):
+                want = selector.get(field)
+                if want is None:
+                    continue
+                got = {
+                    "resourceId": node.get("resource-id"),
+                    "text": node.get("text"),
+                    "description": node.get("content-desc"),
+                    "className": node.get("class"),
+                }[field]
+                if got != want:
+                    return False
+            for field, node_attr in (
+                ("resourceIdMatches", "resource-id"),
+                ("textMatches", "text"),
+                ("descriptionMatches", "content-desc"),
+                ("classNameMatches", "class"),
+            ):
+                pattern = selector.get(field)
+                if pattern is None:
+                    continue
+                got = node.get(node_attr) or ""
+                try:
+                    if not re.search(pattern, got):
+                        return False
+                except re.error:
+                    return False
+            return True
+
+        def _dump_hierarchy_safe(self):
+            try:
+                return self.deviceV2.dump_hierarchy()
+            except Exception:
+                return None
+
+        def _exists_via_hierarchy(self):
+            """True if a node matching this selector is visible in a
+            hierarchy dump. dump_hierarchy keeps working while the
+            selector RPC returns false negatives (#689)."""
+            xml_dump = self._dump_hierarchy_safe()
+            if xml_dump is None:
+                return False
+            try:
+                root = ET.fromstring(xml_dump)
+            except ET.ParseError:
+                return False
+            for node in root.iter("node"):
+                if self._selector_matches_node(node):
+                    return True
+            return False
+
+        def exists(self, ui_timeout=None, ignore_bug: bool = False):
             try:
                 # Currently, the methods left, right, up and down from
                 # uiautomator2 return None when a Selector does not exist.
@@ -606,6 +684,25 @@ class DeviceFacade:
                         return "BUG!"
                     # More info about that: https://github.com/openatx/uiautomator2/issues/689"
                     return False
+                if exists:
+                    DeviceFacade.View._MISS_STREAK = 0
+                    return True
+                DeviceFacade.View._MISS_STREAK += 1
+                stale_window_active = time.time() < DeviceFacade.View._STALE_UNTIL
+                if (
+                    DeviceFacade.View._MISS_STREAK
+                    >= DeviceFacade.View._STALE_MISS_THRESHOLD
+                    or stale_window_active
+                ) and self._exists_via_hierarchy():
+                    DeviceFacade.View._STALE_UNTIL = (
+                        time.time() + DeviceFacade.View._STALE_WINDOW
+                    )
+                    logger.debug(
+                        "Selector engine reported not-found but the hierarchy dump"
+                        " contains a matching node; treating the view as present"
+                        " (stale uiautomator selector cache)."
+                    )
+                    return True
                 return exists
             except Exception as e:
                 raise DeviceFacade.JsonRpcError(e)
@@ -639,11 +736,42 @@ class DeviceFacade:
             except Exception as e:
                 raise DeviceFacade.JsonRpcError(e)
 
+        def _node_bounds(self, node):
+            m = re.match(
+                r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]", node.get("bounds", "")
+            )
+            if not m:
+                return None
+            left, top, right, bottom = (int(v) for v in m.groups())
+            return {"left": left, "top": top, "right": right, "bottom": bottom}
+
+        def _bounds_via_hierarchy(self):
+            """Bounds of the first dump node matching this selector, or None."""
+            xml_dump = self._dump_hierarchy_safe()
+            if xml_dump is None:
+                return None
+            try:
+                root = ET.fromstring(xml_dump)
+            except ET.ParseError:
+                return None
+            for node in root.iter("node"):
+                if self._selector_matches_node(node):
+                    return self._node_bounds(node)
+            return None
+
         def get_bounds(self) -> dict:
             try:
                 return self.viewV2.info["bounds"]
-            except Exception as e:
-                raise DeviceFacade.JsonRpcError(e)
+            except Exception:
+                bounds = self._bounds_via_hierarchy()
+                if bounds is not None:
+                    logger.debug(
+                        "get_bounds: selector engine failed; using hierarchy dump bounds."
+                    )
+                    return bounds
+                raise DeviceFacade.JsonRpcError(
+                    "UiObjectNotFound and no hierarchy fallback bounds"
+                )
 
         def get_height(self) -> int:
             bounds = self.get_bounds()
