@@ -1228,10 +1228,14 @@ class PostsViewList:
             )
             if not has_media:
                 continue
-        for caption in captions:
-            if header["bounds"]["top"] <= caption["bounds"]["top"] < next_header_top:
-                logger.debug("Description found in current post hierarchy.")
-                return caption["text"]
+            for caption in captions:
+                if (
+                    header["bounds"]["top"]
+                    <= caption["bounds"]["top"]
+                    < next_header_top
+                ):
+                    logger.debug("Description found in current post hierarchy.")
+                    return caption["text"]
         # Reels fallback: the caption lives in the content-desc of a
         # clips_caption_component descendant, not in a feed text view.
         for node in root.iter("node"):
