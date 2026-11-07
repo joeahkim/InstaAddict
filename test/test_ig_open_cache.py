@@ -50,6 +50,7 @@ def test_crash_invalidates_cache_and_recovery_checks_fresh():
     with (
         patch.object(device_facade, "args", SimpleNamespace(timeout_scale=2)),
         patch.object(device_facade.time, "monotonic", clock),
+        patch.object(device_facade, "sleep", lambda _s: None),
     ):
         device.find(text="healthy")
         device.deviceV2.app_current.return_value = {"package": "launcher"}
@@ -64,19 +65,21 @@ def test_crash_invalidates_cache_and_recovery_checks_fresh():
             pass
         else:
             raise AssertionError("Expected AppHasCrashed")
-        assert device._last_ig_open_check == float("-inf")
+        # Stale re-check + 3 foreground re-check attempts, no UI selectors.
+        assert device.deviceV2.app_current.call_count == 5
         assert device.deviceV2.call_count == selector_calls
+        assert device._last_ig_open_check == float("-inf")
 
         def check_if_crash_popup_is_there():
             return device.find(text="crash popup")
 
         check_if_crash_popup_is_there()
-        assert device.deviceV2.app_current.call_count == 3
+        assert device.deviceV2.app_current.call_count == 6
         device.deviceV2.app_current.return_value = {"package": device.app_id}
         device.find(text="reopened")
-        assert device.deviceV2.app_current.call_count == 4
+        assert device.deviceV2.app_current.call_count == 7
         device.find(text="cached again")
-        assert device.deviceV2.app_current.call_count == 4
+        assert device.deviceV2.app_current.call_count == 7
 
 
 def main():
