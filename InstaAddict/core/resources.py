@@ -28,7 +28,12 @@ class ResourceID:
         self.CAROUSEL_INDEX_INDICATOR_TEXT_VIEW = (
             f"{APP_ID}:id/carousel_index_indicator_text_view"
         )
+        self.CLIPS_AUTHOR_PROFILE_PIC = f"{APP_ID}:id/clips_author_profile_pic"
+        self.CLIPS_AUTHOR_USERNAME = f"{APP_ID}:id/clips_author_username"
+        self.CLIPS_CAPTION_COMPONENT = f"{APP_ID}:id/clips_caption_component"
+        self.CLIPS_MEDIA_COMPONENT = f"{APP_ID}:id/clips_media_component"
         self.CLIPS_VIDEO_CONTAINER = f"{APP_ID}:id/clips_video_container"
+        self.CLIPS_VIEWER_CONTAINER = f"{APP_ID}:id/clips_viewer_container"
         self.COLLECTION_ROOT_VIEW = f"{APP_ID}:id/collection_root_view"
         self.COORDINATOR_ROOT_LAYOUT = f"{APP_ID}:id/coordinator_root_layout"
         self.DIALOG_ROOT_VIEW = f"{APP_ID}:id/dialog_root_view"
@@ -72,6 +77,7 @@ class ResourceID:
             f"{APP_ID}:id/layout_comment_thread_post_button_icon"
         )
         self.LIKE_BUTTON = f"{APP_ID}:id/like_button"
+        self.LIKE_COUNT = f"{APP_ID}:id/like_count"
         self.LIVE_BADGE_VIEW = f"{APP_ID}:id/live_badge_view"
         self.MEDIA_GROUP = f"{APP_ID}:id/media_group"
         self.MEDIA_CONTENT_LOCATION = f"{APP_ID}:id/media_content_location"
