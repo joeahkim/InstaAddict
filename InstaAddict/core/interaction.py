@@ -978,6 +978,25 @@ def _follow(device, username, follow_percentage, args, session_state, swipe_amou
     return False
 
 
+def _close_story_view(story_view: CurrentStoryView, username: str):
+    """Close the story viewer even when IG already advanced to another
+    user's story: press back while any story frame is still showing so
+    the target's profile ends up underneath again."""
+    for _ in range(4):
+        try:
+            shown = story_view.getUsername().strip().casefold()
+        except Exception:
+            shown = ""
+        if shown and shown != username.casefold():
+            logger.debug(
+                f"Story viewer advanced to another user ({shown}). Closing it."
+            )
+        if not story_view.getStoryFrame().exists(Timeout.ZERO):
+            break
+        story_view.device.back()
+        story_view.getStoryFrame().wait_gone(Timeout.SHORT)
+
+
 def _watch_stories(
     device: DeviceFacade,
     profile_view: ProfileView,
@@ -1074,14 +1093,7 @@ def _watch_stories(
                             "Ignore this error! Stories ended while we were interacting with it."
                         )
                         break
-                for _ in range(4):
-                    if (
-                        story_view.getUsername().strip().casefold()
-                        == username.casefold()
-                    ):
-                        device.back()
-                    else:
-                        break
+                _close_story_view(story_view, username)
                 session_state.check_limit(
                     limit_type=session_state.Limit.WATCHES, output=True
                 )
@@ -1096,7 +1108,9 @@ def _watch_stories(
                 if story_frame.exists():
                     device.back()
                 return 0
-        return 0
+        else:
+            # profile has no story ring: nothing to watch
+            return 0
     else:
         logger.info("Reached total watch limit, not watching stories.")
         return 0
