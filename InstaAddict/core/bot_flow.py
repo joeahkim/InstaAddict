@@ -8,6 +8,7 @@ from colorama import Fore, Style
 from InstaAddict import __tested_ig_version__
 from InstaAddict.core.config import Config
 from InstaAddict.core.device_facade import create_device, get_device_info
+from InstaAddict.core.device_facade import load_config as load_device_facade
 from InstaAddict.core.filter import Filter
 from InstaAddict.core.filter import load_config as load_filter
 from InstaAddict.core.interaction import load_config as load_interaction
@@ -96,6 +97,7 @@ def start_bot(**kwargs):
     load_interaction(configs)
     load_utils(configs)
     load_views(configs)
+    load_device_facade(configs)
 
     if not configs.args or not check_adb_connection():
         return
