@@ -4,6 +4,8 @@ from unittest.mock import patch
 from InstaAddict.core import views
 from InstaAddict.core.views import PostsGridView
 
+views.ResourceID = views.resources("com.instagram.android")
+
 
 class FakeCell:
     def __init__(self, description):
