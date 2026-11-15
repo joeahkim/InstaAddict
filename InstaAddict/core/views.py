@@ -101,8 +101,16 @@ class TabBarView:
         self.device = device
 
     def _getTabBar(self):
-        return self.device.find(
+        tab_bar = self.device.find(
             resourceIdMatches=case_insensitive_re(ResourceID.TAB_BAR),
+            className=ClassName.LINEAR_LAYOUT,
+        )
+
+        if tab_bar.exists(Timeout.SHORT):
+            return tab_bar
+
+        return self.device.find(
+            resourceId=ResourceID.LS_NAV_BAR,
             className=ClassName.LINEAR_LAYOUT,
         )
 
@@ -150,12 +158,36 @@ class TabBarView:
         logger.debug(f"Navigate to {tab_name}")
         button = None
         UniversalActions.close_keyboard(self.device)
-        for _ in range(5):
+        for attempt in range(5):
+            # Check whether Instagram is still in foreground
+            if self.device._get_current_app() != self.device.app_id:
+                logger.warning(
+                    "Navigation aborted: Instagram is no longer in foreground."
+                )
+                return False
+
+            # Check whether the tab bar is visible
             if self.is_tab_bar_visible():
                 break
-            logger.debug("Tab bar not visible, go back.")
+
+            logger.debug(f"Tab bar not visible. Pressing BACK ({attempt + 1}/5).")
+
             self.device.back()
             random_sleep(1, 2, modulable=False)
+
+            # Verify that Instagram is still in foreground
+            if self.device._get_current_app() != self.device.app_id:
+                logger.warning(
+                    "Navigation aborted: BACK moved Instagram to background."
+                )
+                return False
+
+            # Check again after BACK
+            if self.is_tab_bar_visible():
+                break
+        else:
+            logger.warning("Navigation aborted: tab bar could not be detected.")
+            return False
         if tab == TabBarTabs.HOME:
             button = self.device.find(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
@@ -196,9 +228,17 @@ class TabBarView:
 
         elif tab == TabBarTabs.PROFILE:
             button = self.device.find(
-                classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
-                descriptionMatches=case_insensitive_re(TabBarText.PROFILE_CONTENT_DESC),
+                resourceId=ResourceID.PROFILE_TAB,
             )
+
+            if not button.exists():
+                button = self.device.find(
+                    classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
+                    descriptionMatches=case_insensitive_re(
+                        TabBarText.PROFILE_CONTENT_DESC
+                    ),
+                )
+
             if not button.exists():
                 button = self._get_new_profile_position()
 
@@ -2356,21 +2396,33 @@ class ProfileView(ActionBarView):
             return None, None, None
 
     def _new_ui_profile_button(self) -> bool:
-        # Language-independent: profile is always the last tab button
+        profile_button = self.device.find(
+            resourceId=ResourceID.PROFILE_TAB,
+        )
+
+        if profile_button.exists(Timeout.MEDIUM):
+            profile_button.click()
+            return True
+
+        # Fallback dla interfejsów, w których nie ma profile_tab
         tab_bar = TabBarView(self.device)._getTabBar()
+
         if not tab_bar.exists(Timeout.SHORT):
             logger.debug("_new_ui_profile_button: tab_bar not found")
             return False
+
         buttons = tab_bar.child(classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX)
         n = buttons.count_items()
+
         logger.debug(f"_new_ui_profile_button: tab_bar found, {n} child buttons")
+
         if n > 0:
-            last_btn = tab_bar.child(
+            tab_bar.child(
                 classNameMatches=ClassName.BUTTON_OR_FRAME_LAYOUT_REGEX,
                 instance=n - 1,
-            )
-            last_btn.click()
+            ).click()
             return True
+
         return False
 
     def _old_ui_profile_button(self) -> bool:

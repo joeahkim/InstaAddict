@@ -179,6 +179,8 @@ class ResourceID:
         )
         self.TAB_AVATAR = f"{APP_ID}:id/tab_avatar"
         self.TAB_BAR = f"{APP_ID}:id/tab_bar"
+        self.LS_NAV_BAR = f"{APP_ID}:id/ls_nav_bar"
+        self.PROFILE_TAB = f"{APP_ID}:id/profile_tab"
         self.TAB_BUTTON_NAME_TEXT = f"{APP_ID}:id/tab_button_name_text"
         self.TAB_BUTTON_FALLBACK_ICON = f"{APP_ID}:id/tab_button_fallback_icon"
         self.TIMER = f"{APP_ID}:id/timer"
