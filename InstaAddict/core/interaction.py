@@ -1071,6 +1071,7 @@ def _watch_stories(
                 start = datetime.now()
                 try:
                     if not watch_story():
+                        _close_story_view(story_view, username)
                         return stories_counter
                 except Exception as e:
                     logger.debug(f"Exception: {e}")
